@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clasificador de Aves 🐦</title>
+
+  <!-- Cargar TensorFlow.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0/dist/tf.min.js"></script>
+  <!-- Cargar el modelo de Teachable Machine (tfjs) -->
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Poppins", sans-serif;
+      margin: 0;
+      background: linear-gradient(135deg, #a8edea, #fed6e3);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .container {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+      padding: 30px;
+      text-align: center;
+      max-width: 700px;
+      width: 90%;
+    }
+    h1 { color: #333; margin-bottom: 10px; }
+    p { color: #555; font-size: 0.95em; margin-bottom: 20px; }
+    #webcam-container {
+      position: relative;
+      width: 100%;
+      max-width: 300px;
+      margin: 0 auto 20px;
+    }
+    #webcam {
+    width: 100%;
+    max-width: 550px;
+    height: auto;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    display: none;
+    }
+    #prediction {
+      font-size: 1.6em;
+      font-weight: bold;
+      color: #222;
+      margin: 15px 0;
+      padding: 12px;
+      background: #f9f9f9;
+      border-radius: 10px;
+    }
+    button {
+      background-color: #6c63ff;
+      color: white;
+      border: none;
+      padding: 12px 25px;
+      border-radius: 30px;
+      cursor: pointer;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+    button:hover { background-color: #5848e9; }
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Clasificador de Aves 🐦</h1>
+    <p>Activa tu cámara para identificar: Paloma, Tucán, Colibrí o Cóndor.</p>
+
+    <div id="webcam-container">
+      <video id="webcam" autoplay playsinline></video>
+    </div>
+
+    <div id="prediction">📷 Esperando activación de cámara...</div>
+
+    <button id="enableCam">🎥 Activar cámara</button>
+  </div>
+
+  <script>
+    // URL del modelo
+    const URL = "model/";
+
+    let model, webcamStream, videoElement, labelContainer, maxPredictions;
+
+    async function init() {
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
+
+      // Cargar el modelo
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
+
+      // Obtener acceso a la cámara
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        videoElement = document.getElementById("webcam");
+        videoElement.srcObject = stream;
+        videoElement.style.display = "block";
+        document.getElementById("enableCam").disabled = true;
+        document.getElementById("prediction").innerText = "🧠 Analizando en tiempo real...";
+
+        // Iniciar predicciones
+        window.requestAnimationFrame(loop);
+
+      } catch (err) {
+        console.error("Error al acceder a la cámara:", err);
+        document.getElementById("prediction").innerText = "❗ Permite el acceso a la cámara.";
+      }
+    }
+
+    async function loop() {
+      if (!videoElement || !videoElement.srcObject) return;
+
+      // Hacer predicción usando el video actual
+      const prediction = await model.predict(videoElement);
+      let bestPrediction = prediction[0];
+      for (let i = 1; i < maxPredictions; i++) {
+        if (prediction[i].probability > bestPrediction.probability) {
+          bestPrediction = prediction[i];
+        }
+      }
+
+      const label = bestPrediction.className;
+      const prob = Math.round(bestPrediction.probability * 100);
+
+      if (prob < 25) {
+        document.getElementById("prediction").innerText = `🤔 No estoy seguro (${prob}% confianza)`;
+      } else {
+        document.getElementById("prediction").innerText = `🧠 ${label} (${prob}% confianza)`;
+      }
+
+      window.requestAnimationFrame(loop);
+    }
+
+    document.getElementById("enableCam").addEventListener("click", () => {
+      init().catch(e => {
+        console.error("Error al iniciar:", e);
+        document.getElementById("prediction").innerText = "❌ Error: " + e.message;
+      });
+    });
+  </script>
+</body>
+</html>
